@@ -142,17 +142,22 @@ st.sidebar.markdown("<h2 style='color:#38bdf8;'>⚙️ Connections & Config</h2>
 
 # LLM Configuration Selection
 st.sidebar.markdown("### 🧠 LLM Settings")
-llm_provider_choice = st.sidebar.selectbox("LLM Provider", ["OpenAI", "Ollama"], index=0)
+llm_provider_choice = st.sidebar.selectbox("LLM Provider", ["OpenAI", "Ollama", "Gemini"], index=0)
 
 if llm_provider_choice == "OpenAI":
     api_key_env = os.getenv("OPENAI_API_KEY", "")
     openai_key = st.sidebar.text_input("OpenAI API Key", value=api_key_env, type="password")
     openai_model = st.sidebar.text_input("Model", value="gpt-4o")
     llm_kwargs = {"api_key": openai_key, "model": openai_model}
-else:
+elif llm_provider_choice == "Ollama":
     ollama_url = st.sidebar.text_input("Ollama Endpoint", value="http://localhost:11434")
     ollama_model = st.sidebar.text_input("Model", value="llama3")
     llm_kwargs = {"base_url": ollama_url, "model": ollama_model}
+else:
+    gemini_key_env = os.getenv("GEMINI_API_KEY", "")
+    gemini_key = st.sidebar.text_input("Gemini API Key", value=gemini_key_env, type="password")
+    gemini_model = st.sidebar.text_input("Model", value="gemini-1.5-flash")
+    llm_kwargs = {"api_key": gemini_key, "model": gemini_model}
 
 # Database Connection Method Choice
 st.sidebar.markdown("---")

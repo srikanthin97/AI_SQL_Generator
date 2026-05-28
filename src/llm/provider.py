@@ -68,6 +68,31 @@ class OllamaProvider(BaseLLMProvider):
             logger.error(f"Ollama Generation Error: {e}")
             raise RuntimeError(f"Ollama request failed: {e}")
 
+class GeminiProvider(BaseLLMProvider):
+    """Google Gemini API wrapper."""
+    
+    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        self.model_name = model
+
+    def generate(self, prompt: str, system_prompt: Optional[str] = None, temperature: float = 0.0) -> str:
+        import google.generativeai as genai
+        config = genai.types.GenerationConfig(
+            temperature=temperature
+        )
+        try:
+            if system_prompt:
+                model = genai.GenerativeModel(self.model_name, system_instruction=system_prompt)
+            else:
+                model = genai.GenerativeModel(self.model_name)
+                
+            response = model.generate_content(prompt, generation_config=config)
+            return response.text or ""
+        except Exception as e:
+            logger.error(f"Gemini Generation Error: {e}")
+            raise RuntimeError(f"Gemini request failed: {e}")
+
 def get_llm_provider(provider_name: str, **kwargs) -> BaseLLMProvider:
     """Factory function to retrieve LLM provider instances."""
     provider_name = provider_name.lower().strip()
@@ -81,5 +106,11 @@ def get_llm_provider(provider_name: str, **kwargs) -> BaseLLMProvider:
         base_url = kwargs.get("base_url") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         model = kwargs.get("model") or os.getenv("LLM_MODEL", "llama3")
         return OllamaProvider(base_url=base_url, model=model)
+    elif provider_name == "gemini" or provider_name == "google":
+        api_key = kwargs.get("api_key") or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is not configured")
+        model = kwargs.get("model") or os.getenv("LLM_MODEL", "gemini-1.5-flash")
+        return GeminiProvider(api_key=api_key, model=model)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider_name}")
