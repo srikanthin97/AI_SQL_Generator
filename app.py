@@ -156,7 +156,7 @@ elif llm_provider_choice == "Ollama":
 else:
     gemini_key_env = os.getenv("GEMINI_API_KEY", "")
     gemini_key = st.sidebar.text_input("Gemini API Key", value=gemini_key_env, type="password")
-    gemini_model = st.sidebar.text_input("Model", value="gemini-1.5-flash")
+    gemini_model = st.sidebar.text_input("Model", value="gemini-1.5-pro")
     llm_kwargs = {"api_key": gemini_key, "model": gemini_model}
 
 # Database Connection Method Choice
