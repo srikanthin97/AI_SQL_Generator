@@ -71,7 +71,7 @@ class OllamaProvider(BaseLLMProvider):
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini API wrapper."""
     
-    def __init__(self, api_key: str, model: str = "gemini-1.5-pro"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         self.model_name = model
@@ -110,7 +110,7 @@ def get_llm_provider(provider_name: str, **kwargs) -> BaseLLMProvider:
         api_key = kwargs.get("api_key") or os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not configured")
-        model = kwargs.get("model") or os.getenv("LLM_MODEL", "gemini-1.5-pro")
+        model = kwargs.get("model") or os.getenv("LLM_MODEL", "gemini-2.5-flash")
         return GeminiProvider(api_key=api_key, model=model)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider_name}")
