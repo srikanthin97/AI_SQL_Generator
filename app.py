@@ -210,39 +210,55 @@ else:
         )
         db_configured = True
 
+# Database connection helper
+def connect_db(config, db_type, uploaded_csvs):
+    try:
+        import re
+        conn_mgr = DatabaseConnectionManager(config)
+        if conn_mgr.test_connection():
+            st.session_state.connection_manager = conn_mgr
+            st.session_state.db_connected = True
+            
+            # Fetch engine
+            engine = conn_mgr.connect()
+            
+            # Populate in-memory database if CSV files are uploaded
+            if db_type == "CSV File(s) Upload" and uploaded_csvs:
+                for csv_file in uploaded_csvs:
+                    tbl_name = os.path.splitext(csv_file.name)[0]
+                    tbl_name = re.sub(r'[^a-zA-Z0-9_]', '', tbl_name).lower()
+                    df_csv = pd.read_csv(csv_file)
+                    df_csv.to_sql(tbl_name, engine, if_exists="replace", index=False)
+            
+            extractor = DatabaseSchemaExtractor(engine)
+            st.session_state.schema_info = extractor.extract_schema()
+            st.session_state.schema_context = extractor.generate_llm_prompt_context(st.session_state.schema_info)
+            return True
+        else:
+            st.session_state.db_connected = False
+            return False
+    except Exception as e:
+        st.sidebar.error(f"Connection Error: {e}")
+        st.session_state.db_connected = False
+        return False
+
+# Automatic Connection Trigger
+config_hash = f"{db_type}_{uploaded_file.name if 'uploaded_file' in locals() and uploaded_file else ''}_{len(uploaded_csvs) if uploaded_csvs else 0}"
+if "last_config_hash" not in st.session_state:
+    st.session_state.last_config_hash = ""
+
+if db_configured and config_hash != st.session_state.last_config_hash:
+    st.session_state.last_config_hash = config_hash
+    with st.sidebar.spinner("Auto-connecting to data source..."):
+        connect_db(config, db_type, uploaded_csvs)
+
 # Connect Database Button
 if db_configured:
-    if st.sidebar.button("🔌 Connect Database", use_container_width=True):
-        try:
-            import re
-            conn_mgr = DatabaseConnectionManager(config)
-            if conn_mgr.test_connection():
-                st.session_state.connection_manager = conn_mgr
-                st.session_state.db_connected = True
-                
-                # Fetch schema details immediately
-                engine = conn_mgr.connect()
-                
-                # Populate in-memory database if CSV files are uploaded
-                if db_type == "CSV File(s) Upload" and uploaded_csvs:
-                    for csv_file in uploaded_csvs:
-                        # Clean filename to get table name
-                        tbl_name = os.path.splitext(csv_file.name)[0]
-                        tbl_name = re.sub(r'[^a-zA-Z0-9_]', '', tbl_name).lower()
-                        # Read CSV and write to SQL
-                        df_csv = pd.read_csv(csv_file)
-                        df_csv.to_sql(tbl_name, engine, if_exists="replace", index=False)
-                
-                extractor = DatabaseSchemaExtractor(engine)
-                st.session_state.schema_info = extractor.extract_schema()
-                st.session_state.schema_context = extractor.generate_llm_prompt_context(st.session_state.schema_info)
-                
-                st.sidebar.success("Successfully Connected!")
-            else:
-                st.sidebar.error("Failed to connect: Connection test failed.")
-                st.session_state.db_connected = False
-        except Exception as e:
-            st.sidebar.error(f"Error: {e}")
+    if st.sidebar.button("🔌 Reconnect Database", use_container_width=True):
+        if connect_db(config, db_type, uploaded_csvs):
+            st.sidebar.success("Successfully Connected!")
+        else:
+            st.sidebar.error("Failed to connect.")
             st.session_state.db_connected = False
 
 # Database Schema Navigator
