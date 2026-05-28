@@ -162,17 +162,15 @@ else:
 # Database Connection Method Choice
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🗄️ Database Settings")
-db_type = st.sidebar.selectbox("Database Type", ["SQLite (File Upload)", "PostgreSQL"], index=0)
+db_type = st.sidebar.selectbox("Database Type", ["SQLite (File Upload)", "CSV File(s) Upload", "PostgreSQL"], index=0)
 
 db_configured = False
 config = None
+uploaded_csvs = []
 
 if db_type == "SQLite (File Upload)":
-    # Let user upload a file or use the sample database
     uploaded_file = st.sidebar.file_uploader("Upload SQLite Database (.db, .sqlite)", type=["db", "sqlite"])
-    
     if uploaded_file is not None:
-        # Write uploaded file to a temporary location inside project folder
         temp_db_path = f"sample_data/temp_uploaded_{uploaded_file.name}"
         os.makedirs("sample_data", exist_ok=True)
         with open(temp_db_path, "wb") as f:
@@ -180,7 +178,6 @@ if db_type == "SQLite (File Upload)":
         config = SQLiteConfig(db_path=temp_db_path)
         db_configured = True
     else:
-        # Check if default ecommerce.db exists
         default_path = "sample_data/ecommerce.db"
         if os.path.exists(default_path):
             st.sidebar.info(f"Using default sample database: `{default_path}`")
@@ -188,8 +185,15 @@ if db_type == "SQLite (File Upload)":
             db_configured = True
         else:
             st.sidebar.warning("Upload an SQLite database to begin, or generate the default in Phase 1.")
+elif db_type == "CSV File(s) Upload":
+    uploaded_csvs = st.sidebar.file_uploader("Upload CSV file(s)", type=["csv"], accept_multiple_files=True)
+    if uploaded_csvs:
+        # Connect to in-memory SQLite database
+        config = SQLiteConfig(db_path=":memory:")
+        db_configured = True
+    else:
+        st.sidebar.warning("Upload one or more CSV files to convert them to queryable tables.")
 else:
-    # PostgreSQL Configuration
     pg_host = st.sidebar.text_input("Host", value=os.getenv("DB_HOST", "localhost"))
     pg_port = st.sidebar.number_input("Port", min_value=1, max_value=65535, value=int(os.getenv("DB_PORT", 5432)))
     pg_user = st.sidebar.text_input("Username", value=os.getenv("DB_USER", "postgres"))
@@ -210,6 +214,7 @@ else:
 if db_configured:
     if st.sidebar.button("🔌 Connect Database", use_container_width=True):
         try:
+            import re
             conn_mgr = DatabaseConnectionManager(config)
             if conn_mgr.test_connection():
                 st.session_state.connection_manager = conn_mgr
@@ -217,6 +222,17 @@ if db_configured:
                 
                 # Fetch schema details immediately
                 engine = conn_mgr.connect()
+                
+                # Populate in-memory database if CSV files are uploaded
+                if db_type == "CSV File(s) Upload" and uploaded_csvs:
+                    for csv_file in uploaded_csvs:
+                        # Clean filename to get table name
+                        tbl_name = os.path.splitext(csv_file.name)[0]
+                        tbl_name = re.sub(r'[^a-zA-Z0-9_]', '', tbl_name).lower()
+                        # Read CSV and write to SQL
+                        df_csv = pd.read_csv(csv_file)
+                        df_csv.to_sql(tbl_name, engine, if_exists="replace", index=False)
+                
                 extractor = DatabaseSchemaExtractor(engine)
                 st.session_state.schema_info = extractor.extract_schema()
                 st.session_state.schema_context = extractor.generate_llm_prompt_context(st.session_state.schema_info)
